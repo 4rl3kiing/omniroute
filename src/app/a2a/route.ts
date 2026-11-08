@@ -18,6 +18,7 @@ import { logRoutingDecision } from "@/lib/a2a/routingLogger";
 import { createA2AStream, SSE_HEADERS } from "@/lib/a2a/streaming";
 import { executeA2ATaskWithState } from "@/lib/a2a/taskExecution";
 import { secureCompare } from "@/shared/utils/secureCompare";
+import { isSecureMode } from "@/shared/utils/securityMode";
 
 // ============ Skill Registry ============
 
@@ -76,7 +77,7 @@ function toMessageArray(raw: unknown): A2AMessage[] | null {
 function authenticate(req: NextRequest): boolean {
   // If no API key is configured, allow all requests
   const configuredKey = process.env.OMNIROUTE_API_KEY;
-  if (!configuredKey) return true;
+  if (!configuredKey) return !isSecureMode();
 
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "");

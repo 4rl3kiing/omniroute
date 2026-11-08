@@ -21,8 +21,21 @@ after(() => {
   if (existsSync(TEST_DB)) unlinkSync(TEST_DB);
 });
 
+// These tests hit the real models.dev API. Skip (instead of failing) when the network is
+// unavailable, e.g. in offline CI, sandboxes or pre-push hooks.
+let liveUnavailable = false;
+before(async () => {
+  try {
+    const { fetchModelsDev } = await import("../../src/lib/modelsDevSync.ts");
+    await fetchModelsDev();
+  } catch {
+    liveUnavailable = true;
+  }
+});
+
 describe("modelsDevSync — integration: live fetch → DB → retrieve", () => {
-  it("fetches, saves pricing, and retrieves from DB", async () => {
+  it("fetches, saves pricing, and retrieves from DB", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const {
       syncModelsDev,
       getModelsDevPricing,
@@ -85,7 +98,8 @@ describe("modelsDevSync — integration: live fetch → DB → retrieve", () => 
     assert.equal(Object.keys(afterCaps).length, 0, "capabilities should be cleared");
   });
 
-  it("dryRun returns data without saving to DB", async () => {
+  it("dryRun returns data without saving to DB", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const { syncModelsDev, getModelsDevPricing, clearModelsDevPricing } =
       await import("../../src/lib/modelsDevSync.ts");
 
@@ -102,7 +116,8 @@ describe("modelsDevSync — integration: live fetch → DB → retrieve", () => 
     assert.equal(Object.keys(pricing).length, 0, "dryRun should not save to DB");
   });
 
-  it("sync without capabilities only saves pricing", async () => {
+  it("sync without capabilities only saves pricing", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const {
       syncModelsDev,
       getModelsDevPricing,
@@ -132,7 +147,8 @@ describe("modelsDevSync — integration: live fetch → DB → retrieve", () => 
 });
 
 describe("modelsDevSync — resolution order: user > models.dev > LiteLLM > default", () => {
-  it("returns models.dev pricing when no user override exists", async () => {
+  it("returns models.dev pricing when no user override exists", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const { syncModelsDev, getModelsDevPricing, clearModelsDevPricing } =
       await import("../../src/lib/modelsDevSync.ts");
 

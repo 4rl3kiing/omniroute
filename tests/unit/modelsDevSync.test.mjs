@@ -411,7 +411,19 @@ describe("modelsDevSync — mapProviderId", () => {
 });
 
 describe("modelsDevSync — fetchModelsDev (live API)", () => {
-  it("fetches data from models.dev API", async () => {
+  // These tests hit the real models.dev API. Skip (instead of failing) when the network is
+  // unavailable, e.g. in offline CI, sandboxes or pre-push hooks.
+  let liveUnavailable = false;
+  before(async () => {
+    try {
+      await fetchModelsDev();
+    } catch {
+      liveUnavailable = true;
+    }
+  });
+
+  it("fetches data from models.dev API", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const data = await fetchModelsDev();
     assert.ok(typeof data === "object", "data should be an object");
 
@@ -428,19 +440,22 @@ describe("modelsDevSync — fetchModelsDev (live API)", () => {
     assert.ok(modelCount >= 4000, `should have 4000+ models, got ${modelCount}`);
   });
 
-  it("returns cached data on second call", async () => {
+  it("returns cached data on second call", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const data1 = await fetchModelsDev();
     const data2 = await fetchModelsDev();
     assert.strictEqual(data1, data2, "should return same cached reference");
   });
 
-  it("has openai provider with gpt-4o model", async () => {
+  it("has openai provider with gpt-4o model", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const data = await fetchModelsDev();
     assert.ok(data.openai, "openai provider should exist");
     assert.ok(data.openai.models["gpt-4o"], "gpt-4o model should exist");
   });
 
-  it("has anthropic provider with claude models", async () => {
+  it("has anthropic provider with claude models", async (t) => {
+    if (liveUnavailable) return t.skip("models.dev is unreachable");
     const data = await fetchModelsDev();
     assert.ok(data.anthropic, "anthropic provider should exist");
     const claudeModels = Object.keys(data.anthropic.models).filter((m) => m.includes("claude"));

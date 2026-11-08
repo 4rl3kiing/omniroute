@@ -200,14 +200,40 @@ async function readStateFile(): Promise<PersistedTunnelState> {
   }
 }
 
-async function writeStateFile(state: PersistedTunnelState) {
+// State writes are serialized and atomic: concurrent callers (stderr handler, exit handler,
+// start/stop) used to interleave plain writeFile calls and could leave corrupted JSON or lose
+// each other's patches.
+let stateWriteQueue: Promise<unknown> = Promise.resolve();
+let stateTempCounter = 0;
+
+function enqueueStateWrite<T>(task: () => Promise<T>): Promise<T> {
+  const run = stateWriteQueue.then(task, task);
+  stateWriteQueue = run.catch(() => undefined);
+  return run;
+}
+
+async function writeStateFileAtomic(state: PersistedTunnelState) {
   await ensureTunnelDir();
-  await fs.writeFile(getStateFilePath(), JSON.stringify(state, null, 2) + "\n", "utf8");
+  const target = getStateFilePath();
+  const temp = `${target}.${process.pid}.${++stateTempCounter}.tmp`;
+  try {
+    await fs.writeFile(temp, JSON.stringify(state, null, 2) + "\n", "utf8");
+    await fs.rename(temp, target);
+  } catch (error) {
+    await fs.rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function writeStateFile(state: PersistedTunnelState) {
+  await enqueueStateWrite(() => writeStateFileAtomic(state));
 }
 
 async function updateStateFile(patch: PersistedTunnelState) {
-  const current = await readStateFile();
-  await writeStateFile({ ...current, ...patch });
+  await enqueueStateWrite(async () => {
+    const current = await readStateFile();
+    await writeStateFileAtomic({ ...current, ...patch });
+  });
 }
 
 async function clearPidFile() {
@@ -766,22 +792,31 @@ export async function startCloudflaredTunnel(): Promise<CloudflaredTunnelStatus>
         settle(() => resolve(status));
       };
 
-      child.stdout.on("data", (chunk: Buffer) => {
-        void handleOutput("stdout", chunk);
-      });
-      child.stderr.on("data", (chunk: Buffer) => {
-        void handleOutput("stderr", chunk);
-      });
+      // Output handlers are async (log append + state write). Track them so an early exit
+      // waits for them: otherwise the specific error cloudflared printed right before exiting
+      // can lose the race and be replaced by a generic "exited before tunnel URL" message.
+      const pendingOutputs = new Set<Promise<void>>();
+      const trackOutput = (source: "stdout" | "stderr", chunk: Buffer) => {
+        const task = handleOutput(source, chunk).catch(() => undefined);
+        pendingOutputs.add(task);
+        void task.finally(() => pendingOutputs.delete(task));
+      };
+
+      child.stdout.on("data", (chunk: Buffer) => trackOutput("stdout", chunk));
+      child.stderr.on("data", (chunk: Buffer) => trackOutput("stderr", chunk));
 
       child.once("exit", (code, signal) => {
-        void finalizeProcessExit(code, signal);
-        settle(() =>
-          reject(
-            new Error(
-              `cloudflared exited before tunnel URL was ready (${code ?? "signal"}${signal ? `/${signal}` : ""})`
+        void (async () => {
+          await Promise.allSettled([...pendingOutputs]);
+          void finalizeProcessExit(code, signal);
+          settle(() =>
+            reject(
+              new Error(
+                `cloudflared exited before tunnel URL was ready (${code ?? "signal"}${signal ? `/${signal}` : ""})`
+              )
             )
-          )
-        );
+          );
+        })();
       });
 
       timeout = setTimeout(async () => {

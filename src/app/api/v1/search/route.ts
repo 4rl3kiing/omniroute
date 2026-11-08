@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleSearch } from "@omniroute/open-sse/handlers/search.ts";
 import { getProviderCredentials, extractApiKey, isValidApiKey } from "@/sse/services/auth";
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
   const body = validation.data;
 
   // Optional API key validation
-  if (process.env.REQUIRE_API_KEY === "true") {
+  if (isApiKeyRequired()) {
     const apiKey = extractApiKey(request);
     if (!apiKey) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");

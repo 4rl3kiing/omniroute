@@ -6,6 +6,8 @@
  * them. Set OMNIROUTE_SUPPRESS_SECURITY_WARNINGS=true to silence the output.
  */
 
+import { isApiKeyRequired, isSecureMode } from "@/shared/utils/securityMode";
+
 type Env = Record<string, string | undefined>;
 
 const isTrue = (value: string | undefined) =>
@@ -16,10 +18,10 @@ export function collectSecurityWarnings(env: Env = process.env): string[] {
 
   const warnings: string[] = [];
 
-  if (!isTrue(env.REQUIRE_API_KEY)) {
+  if (!isApiKeyRequired(env)) {
     warnings.push(
       "REQUIRE_API_KEY is not enabled: /v1/* endpoints accept requests without an API key. " +
-        "Set REQUIRE_API_KEY=true before exposing OmniRoute beyond localhost."
+        "Set REQUIRE_API_KEY=true (or OMNIROUTE_SECURE_MODE=true) before exposing OmniRoute beyond localhost."
     );
   }
   if (!env.STORAGE_ENCRYPTION_KEY) {
@@ -29,7 +31,9 @@ export function collectSecurityWarnings(env: Env = process.env): string[] {
   }
   if (!env.OMNIROUTE_API_KEY) {
     warnings.push(
-      "OMNIROUTE_API_KEY is not set: the A2A endpoint (/a2a) accepts unauthenticated requests."
+      isSecureMode(env)
+        ? "OMNIROUTE_API_KEY is not set: the A2A endpoint (/a2a) rejects all requests in secure mode."
+        : "OMNIROUTE_API_KEY is not set: the A2A endpoint (/a2a) accepts unauthenticated requests."
     );
   }
   if (!env.CORS_ORIGIN || env.CORS_ORIGIN.trim() === "*") {

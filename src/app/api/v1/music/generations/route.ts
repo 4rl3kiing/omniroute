@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleMusicGeneration } from "@omniroute/open-sse/handlers/musicGeneration.ts";
 import {
@@ -73,7 +74,7 @@ export async function POST(request) {
   const body = validation.data;
 
   // Optional API key validation
-  if (process.env.REQUIRE_API_KEY === "true") {
+  if (isApiKeyRequired()) {
     const apiKey = extractApiKey(request);
     if (!apiKey) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");

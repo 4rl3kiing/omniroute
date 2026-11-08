@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleImageGeneration } from "@omniroute/open-sse/handlers/imageGeneration.ts";
 import { errorResponse, unavailableResponse } from "@omniroute/open-sse/utils/error.ts";
@@ -53,7 +54,7 @@ export async function POST(request, { params }) {
   const body = validation.data;
 
   // Optional API key validation
-  if (process.env.REQUIRE_API_KEY === "true") {
+  if (isApiKeyRequired()) {
     const apiKey = extractApiKey(request);
     if (!apiKey || !(await isValidApiKey(apiKey))) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");

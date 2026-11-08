@@ -147,7 +147,9 @@ The server actively rejects known-weak values like `changeme`, `secret`, or `pas
 
 OmniRoute defaults favor a frictionless local setup. Before exposing it beyond `localhost`:
 
-- Set `REQUIRE_API_KEY=true` so `/v1/*` requires an API key (the default is open).
+- Set `OMNIROUTE_SECURE_MODE=true` for a one-switch hardened preset (API key required on `/v1/*`,
+  `/a2a` refuses to run without `OMNIROUTE_API_KEY`), or just `REQUIRE_API_KEY=true` for the API key
+  requirement alone. The default stays open so existing local setups keep working.
 - Keep `STORAGE_ENCRYPTION_KEY` set (it is generated on first install) so provider keys and
   OAuth tokens are encrypted at rest. Back it up: encrypted data cannot be read without it.
 - Set `OMNIROUTE_API_KEY` to protect the A2A endpoint, and `OMNIROUTE_MCP_ENFORCE_SCOPES=true`
