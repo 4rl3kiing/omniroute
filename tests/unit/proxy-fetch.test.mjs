@@ -10,7 +10,20 @@ import proxyFetch, {
 import { getDefaultDispatcher } from "../../open-sse/utils/proxyDispatcher.ts";
 import tlsClient from "../../open-sse/utils/tlsClient.ts";
 
-async function withEnv(overrides, fn) {
+const PROXY_ENV_KEYS = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"];
+
+// Proxy variables exist in upper and lower case; the ambient lower-case ones (common in CI,
+// containers and sandboxes) would otherwise leak into tests that only override upper-case.
+function expandProxyOverrides(overrides) {
+  const expanded = { ...overrides };
+  for (const key of PROXY_ENV_KEYS) {
+    if (key in overrides) expanded[key.toLowerCase()] = overrides[key];
+  }
+  return expanded;
+}
+
+async function withEnv(rawOverrides, fn) {
+  const overrides = expandProxyOverrides(rawOverrides);
   const previous = new Map();
 
   for (const [key, value] of Object.entries(overrides)) {

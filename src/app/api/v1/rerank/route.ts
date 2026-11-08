@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleRerank } from "@omniroute/open-sse/handlers/rerank.ts";
 import {
@@ -53,7 +54,7 @@ function buildDynamicRerankProvider(node: any) {
  */
 export async function POST(request) {
   // Optional API key validation
-  if (process.env.REQUIRE_API_KEY === "true") {
+  if (isApiKeyRequired()) {
     const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);

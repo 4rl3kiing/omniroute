@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { randomUUID } from "crypto";
 import {
   getProviderCredentials,
@@ -168,7 +169,7 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
 
   // Optional strict API key mode for /v1 endpoints (require key on every request).
   const isComboLiveTest = request.headers?.get?.("x-internal-test") === "combo-health-check";
-  if (process.env.REQUIRE_API_KEY === "true" && !isComboLiveTest) {
+  if (isApiKeyRequired() && !isComboLiveTest) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key while REQUIRE_API_KEY=true");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");

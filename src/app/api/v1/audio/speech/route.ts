@@ -1,3 +1,4 @@
+import { isApiKeyRequired } from "@/shared/utils/securityMode";
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleAudioSpeech } from "@omniroute/open-sse/handlers/audioSpeech.ts";
 import {
@@ -37,7 +38,7 @@ export async function OPTIONS() {
  * OpenAI TTS API compatible. Returns audio stream.
  */
 export async function POST(request) {
-  if (process.env.REQUIRE_API_KEY === "true") {
+  if (isApiKeyRequired()) {
     const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
