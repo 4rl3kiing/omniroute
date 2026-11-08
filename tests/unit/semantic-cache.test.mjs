@@ -18,6 +18,31 @@ describe("Semantic Cache", () => {
       assert.notEqual(sig1, sig2);
     });
 
+    it("keeps the signature of plain chat requests unchanged when extras are absent", () => {
+      const messages = [{ role: "user", content: "hello" }];
+      assert.equal(
+        generateSignature("gpt-4", messages, 0, 1),
+        generateSignature("gpt-4", messages, 0, 1, { stream: false })
+      );
+    });
+
+    it("differentiates requests by tools, tool_choice and response_format", () => {
+      const messages = [{ role: "user", content: "hello" }];
+      const plain = generateSignature("gpt-4", messages, 0, 1);
+      const withTools = generateSignature("gpt-4", messages, 0, 1, {
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      });
+      const withOtherTools = generateSignature("gpt-4", messages, 0, 1, {
+        tools: [{ type: "function", function: { name: "get_time" } }],
+      });
+      const withFormat = generateSignature("gpt-4", messages, 0, 1, {
+        response_format: { type: "json_object" },
+      });
+      const withChoice = generateSignature("gpt-4", messages, 0, 1, { tool_choice: "none" });
+      const all = new Set([plain, withTools, withOtherTools, withFormat, withChoice]);
+      assert.equal(all.size, 5);
+    });
+
     it("generates different signatures for different messages", () => {
       const msg1 = [{ role: "user", content: "hello" }];
       const msg2 = [{ role: "user", content: "goodbye" }];

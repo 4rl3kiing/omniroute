@@ -304,6 +304,24 @@ export const providerChatCompletionSchema = z
     }
   });
 
+/**
+ * Lenient envelope check for the shared chat entry point (`handleChat`), which serves
+ * OpenAI Chat Completions, Claude Messages, Responses API and Ollama shaped bodies.
+ * It only validates the top-level types that the pipeline relies on and lets every
+ * format-specific field through untouched.
+ */
+export const chatRequestEnvelopeSchema = z
+  .object({
+    model: z.string().optional().nullable(),
+    messages: z.array(z.unknown()).optional().nullable(),
+    tools: z.array(z.unknown()).optional().nullable(),
+    stream: z.boolean().optional().nullable(),
+    temperature: z.number().optional().nullable(),
+    top_p: z.number().optional().nullable(),
+    max_tokens: z.number().optional().nullable(),
+  })
+  .catchall(z.unknown());
+
 export const v1CountTokensSchema = z
   .object({
     messages: z.array(countTokensMessageSchema).min(1, "messages must contain at least one item"),

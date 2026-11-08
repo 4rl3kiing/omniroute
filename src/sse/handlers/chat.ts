@@ -21,6 +21,8 @@ import { checkAndRefreshToken } from "../services/tokenRefresh";
 import { deleteHandoff, getHandoff } from "@/lib/db/contextHandoffs";
 import { getSettings, getCombos } from "@/lib/localDb";
 import { sanitizeRequest } from "../../shared/utils/inputSanitizer";
+import { chatRequestEnvelopeSchema } from "@/shared/validation/schemas";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import {
   resolveModelOrError,
   checkPipelineGates,
@@ -89,6 +91,18 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
   } catch {
     log.warn("CHAT", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  }
+
+  // Envelope validation: body must be a JSON object with well-typed core fields.
+  const envelopeValidation = validateBody(chatRequestEnvelopeSchema, body);
+  if (isValidationFailure(envelopeValidation)) {
+    log.warn("CHAT", "Invalid request envelope", envelopeValidation.error.details);
+    return errorResponse(
+      HTTP_STATUS.BAD_REQUEST,
+      `Invalid request: ${envelopeValidation.error.details
+        .map((d) => `${d.field || "body"}: ${d.message}`)
+        .join("; ")}`
+    );
   }
 
   const rawClientBody = cloneLogPayload(body);
