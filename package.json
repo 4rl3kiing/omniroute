@@ -64,6 +64,7 @@
     "test:fixes": "cross-env DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/fixes-p1.test.mjs",
     "test:security": "cross-env DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/security-fase01.test.mjs",
     "check:cycles": "node scripts/check-cycles.mjs",
+    "bench:hot-paths": "node --import tsx/esm scripts/bench-hot-paths.mjs",
     "check:route-validation:t06": "node scripts/check-route-validation.mjs",
     "check:any-budget:t11": "node scripts/check-t11-any-budget.mjs",
     "check:docs-sync": "node scripts/check-docs-sync.mjs",

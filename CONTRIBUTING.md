@@ -151,6 +151,13 @@ Coverage notes:
 - `npm run test:coverage:legacy` preserves the older metric for historical comparison
 - See `docs/COVERAGE_PLAN.md` for the phased coverage improvement roadmap
 
+Performance guard:
+
+- `npm run bench:hot-paths` micro-benchmarks the per-request hot paths (request envelope validation,
+  cache signature, API-key policy check, secret comparison, login limiter, settings/combos reads).
+  Run it before and after touching request-path code and compare the µs/call numbers; on a
+  typical machine every entry is a few microseconds, negligible next to provider latency.
+
 ### Pull Request Requirements
 
 Before opening or merging a PR:

@@ -64,7 +64,6 @@ import {
   parseCodexQuotaHeaders,
   getCodexResetTime,
   getCodexModelScope,
-  getCodexDualWindowCooldownMs,
 } from "../executors/codex.ts";
 import { invalidateCodexQuotaCache } from "../services/codexQuotaFetcher.ts";
 import { translateNonStreamingResponse } from "./responseTranslator.ts";
@@ -129,6 +128,7 @@ import {
   resolveClaudeCodeCompatibleSessionId,
 } from "../services/claudeCodeCompatible.ts";
 import {
+  buildCodexQuotaProviderData,
   extractMemoryTextFromResponse,
   buildClaudePassthroughToolNameMap,
   restoreClaudePassthroughToolNames,
@@ -225,52 +225,25 @@ export async function handleChatCore({
           ? credentials.providerSpecificData
           : {};
       const scope = getCodexModelScope(model || requestedModel || "");
-      const quotaState = {
-        usage5h: quota.usage5h,
-        limit5h: quota.limit5h,
-        resetAt5h: quota.resetAt5h,
-        usage7d: quota.usage7d,
-        limit7d: quota.limit7d,
-        resetAt7d: quota.resetAt7d,
+      const { nextProviderData, exhaustion } = buildCodexQuotaProviderData({
+        existingProviderData,
+        quota,
         scope,
-        updatedAt: new Date().toISOString(),
-      };
+        status,
+      });
 
-      const nextProviderData: Record<string, unknown> = {
-        ...existingProviderData,
-        codexQuotaState: quotaState,
-      };
+      // T03/T09: on 429, the exact reset time is persisted per scope to avoid global over-blocking.
+      if (exhaustion) {
+        log?.debug?.(
+          "CODEX",
+          `Quota exhaustion on ${exhaustion.window} window, cooldown until ${exhaustion.scopeUntil}`
+        );
+      }
 
-      // T03/T09: on 429, persist exact reset time per scope to avoid global over-blocking.
-      // Item 3: Use dual-window cooldown to distinguish 5h vs 7d exhaustion.
-      if (status === 429) {
-        const { cooldownMs, window: exhaustedWindow } = getCodexDualWindowCooldownMs(quota);
-        if (cooldownMs > 0) {
-          const scopeUntil = new Date(Date.now() + cooldownMs).toISOString();
-          const scopeMapRaw =
-            existingProviderData &&
-            typeof existingProviderData === "object" &&
-            existingProviderData.codexScopeRateLimitedUntil &&
-            typeof existingProviderData.codexScopeRateLimitedUntil === "object"
-              ? existingProviderData.codexScopeRateLimitedUntil
-              : {};
-
-          nextProviderData.codexScopeRateLimitedUntil = {
-            ...(scopeMapRaw as Record<string, unknown>),
-            [scope]: scopeUntil,
-          };
-          nextProviderData.codexExhaustedWindow = exhaustedWindow;
-          log?.debug?.(
-            "CODEX",
-            `Quota exhaustion on ${exhaustedWindow} window, cooldown until ${scopeUntil}`
-          );
-        }
-
-        // Invalidate the preflight cache for this connection so the next
-        // isModelAvailable check fetches fresh quota data.
-        if (connectionId) {
-          invalidateCodexQuotaCache(connectionId);
-        }
+      // Invalidate the preflight cache for this connection so the next
+      // isModelAvailable check fetches fresh quota data.
+      if (status === 429 && connectionId) {
+        invalidateCodexQuotaCache(connectionId);
       }
 
       await updateProviderConnection(connectionId, {

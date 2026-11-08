@@ -27,7 +27,11 @@
     "src/shared/validation/providerSchema.ts",
     "src/shared/validation/schemas.ts",
     "open-sse/handlers/responseSanitizer.ts",
-    "open-sse/handlers/responseTranslator.ts"
+    "open-sse/handlers/responseTranslator.ts",
+    "src/shared/utils/secureCompare.ts",
+    "src/shared/utils/securityMode.ts",
+    "src/shared/utils/loginRateLimit.ts",
+    "src/lib/securityWarnings.ts"
   ],
   "exclude": ["node_modules", ".next", "app.__qa_backup", "vscode-extension"]
 }
