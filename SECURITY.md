@@ -143,6 +143,24 @@ The server actively rejects known-weak values like `changeme`, `secret`, or `pas
 
 ---
 
+## Hardening Checklist
+
+OmniRoute defaults favor a frictionless local setup. Before exposing it beyond `localhost`:
+
+- Set `REQUIRE_API_KEY=true` so `/v1/*` requires an API key (the default is open).
+- Keep `STORAGE_ENCRYPTION_KEY` set (it is generated on first install) so provider keys and
+  OAuth tokens are encrypted at rest. Back it up: encrypted data cannot be read without it.
+- Set `OMNIROUTE_API_KEY` to protect the A2A endpoint, and `OMNIROUTE_MCP_ENFORCE_SCOPES=true`
+  to enforce MCP tool scopes.
+- Set `CORS_ORIGIN` to your trusted origin instead of `*` if browsers call the API.
+- Put the service behind HTTPS (reverse proxy or tunnel) and set `AUTH_COOKIE_SECURE=true`.
+- Only enable the Antigravity MITM helper when you need it: it installs a local root
+  certificate and edits `/etc/hosts`. Never set `MITM_DISABLE_TLS_VERIFY` in production.
+- The dashboard login blocks a client after 5 failed attempts for 15 minutes.
+
+At startup OmniRoute logs `[SECURITY]` warnings for any of these that are off.
+Set `OMNIROUTE_SUPPRESS_SECURITY_WARNINGS=true` to silence them.
+
 ## Docker Security
 
 - Use non-root user in production

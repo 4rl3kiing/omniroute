@@ -75,6 +75,13 @@ export async function registerNodejs(): Promise<void> {
 
   await ensureSecrets();
 
+  try {
+    const { logSecurityWarnings } = await import("@/lib/securityWarnings");
+    logSecurityWarnings();
+  } catch {
+    // Advisory only — never block startup.
+  }
+
   // Trigger request-log layout migration during startup, before any request hits usageDb.
   await import("@/lib/usage/migrations");
 

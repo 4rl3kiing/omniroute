@@ -1,4 +1,4 @@
-import { BaseExecutor } from "./base.ts";
+import { BaseExecutor, sanitizePath } from "./base.ts";
 import { PROVIDERS, OAUTH_ENDPOINTS } from "../config/constants.ts";
 import { getAccessToken } from "../services/tokenRefresh.ts";
 import { getRotatingApiKey } from "../services/apiKeyRotator.ts";
@@ -8,6 +8,12 @@ import {
   joinClaudeCodeCompatibleUrl,
 } from "../services/claudeCodeCompatible.ts";
 import { getOpenAICompatibleType, isClaudeCodeCompatible } from "../services/provider.ts";
+
+/** Returns a user-supplied chat path only if it passes the same checks BaseExecutor applies. */
+function getSafeChatPath(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  return sanitizePath(value) ? value : null;
+}
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -22,7 +28,7 @@ export class DefaultExecutor extends BaseExecutor {
       const psd = credentials?.providerSpecificData;
       const baseUrl = psd?.baseUrl || "https://api.openai.com/v1";
       const normalized = baseUrl.replace(/\/$/, "");
-      const customPath = typeof psd?.chatPath === "string" && psd.chatPath ? psd.chatPath : null;
+      const customPath = getSafeChatPath(psd?.chatPath);
       if (customPath) return `${normalized}${customPath}`;
       const path =
         getOpenAICompatibleType(this.provider, psd) === "responses"
@@ -33,7 +39,7 @@ export class DefaultExecutor extends BaseExecutor {
     if (this.provider?.startsWith?.("anthropic-compatible-")) {
       const psd = credentials?.providerSpecificData;
       const baseUrl = psd?.baseUrl || "https://api.anthropic.com/v1";
-      const customPath = typeof psd?.chatPath === "string" && psd.chatPath ? psd.chatPath : null;
+      const customPath = getSafeChatPath(psd?.chatPath);
       if (isClaudeCodeCompatible(this.provider)) {
         return joinClaudeCodeCompatibleUrl(
           baseUrl,

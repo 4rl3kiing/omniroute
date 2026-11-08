@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { secureCompare } from "@/shared/utils/secureCompare";
+import { getLoginClientKey, loginRateLimiter } from "@/shared/utils/loginRateLimit";
 
 // SECURITY: No hardcoded fallback — JWT_SECRET must be configured.
 if (!process.env.JWT_SECRET) {
@@ -20,6 +21,16 @@ export async function POST(request) {
       return NextResponse.json(
         { error: "Server misconfigured: JWT_SECRET not set. Contact administrator." },
         { status: 500 }
+      );
+    }
+
+    // Brute-force protection: block clients with too many recent failed attempts.
+    const clientKey = getLoginClientKey(request.headers);
+    const limit = loginRateLimiter.check(clientKey);
+    if (limit.blocked) {
+      return NextResponse.json(
+        { error: "Too many failed login attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
       );
     }
 
@@ -54,6 +65,7 @@ export async function POST(request) {
     }
 
     if (isValid) {
+      loginRateLimiter.recordSuccess(clientKey);
       const forceSecureCookie = process.env.AUTH_COOKIE_SECURE === "true";
       const forwardedProtoHeader = request.headers.get("x-forwarded-proto") || "";
       const forwardedProto = forwardedProtoHeader.split(",")[0].trim().toLowerCase();
@@ -76,6 +88,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
+    loginRateLimiter.recordFailure(clientKey);
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   } catch (error) {
     console.error("[AUTH] Login failed:", error);

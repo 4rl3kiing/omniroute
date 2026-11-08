@@ -490,3 +490,18 @@ test("BaseExecutor.execute propagates aborted requests through the merged signal
     globalThis.fetch = originalFetch;
   }
 });
+
+test("DefaultExecutor: compatible providers ignore unsafe custom chat paths", () => {
+  const openai = new DefaultExecutor("openai-compatible-test");
+  const anthropic = new DefaultExecutor("anthropic-compatible-test");
+  const build = (executor, chatPath) =>
+    executor.buildUrl("m", true, 0, {
+      providerSpecificData: { baseUrl: "https://example.com/v1", chatPath },
+    });
+
+  assert.equal(build(openai, "/custom/chat"), "https://example.com/v1/custom/chat");
+  assert.equal(build(openai, "../evil"), "https://example.com/v1/chat/completions");
+  assert.equal(build(openai, "/ok\0evil"), "https://example.com/v1/chat/completions");
+  assert.equal(build(anthropic, "/custom/messages"), "https://example.com/v1/custom/messages");
+  assert.equal(build(anthropic, "../evil"), "https://example.com/v1/messages");
+});
