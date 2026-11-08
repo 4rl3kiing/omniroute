@@ -4,6 +4,7 @@
  */
 
 import { FORMATS } from "../translator/formats.ts";
+import { getCodexDualWindowCooldownMs } from "../executors/codex.ts";
 import { CLAUDE_OAUTH_TOOL_PREFIX } from "../translator/request/openai-to-claude.ts";
 
 export function extractMemoryTextFromResponse(
@@ -319,3 +320,60 @@ export function attachLogMeta(
  * @param {boolean} options.isCombo - Whether this request is from a combo
  * @param {string} options.connectionId - Connection ID for settings lookup
  */
+
+type CodexQuotaSnapshotLike = Parameters<typeof getCodexDualWindowCooldownMs>[0];
+
+/**
+ * Pure part of the Codex quota persistence: merges the parsed quota headers into the connection's
+ * provider data and, on a 429, records the per-scope reset time (dual 5h/7d window aware).
+ * Side effects (DB write, cache invalidation, logging) stay in chatCore.
+ */
+export function buildCodexQuotaProviderData({
+  existingProviderData,
+  quota,
+  scope,
+  status = 0,
+  nowMs = Date.now(),
+}: {
+  existingProviderData: Record<string, unknown>;
+  quota: CodexQuotaSnapshotLike;
+  scope: string;
+  status?: number;
+  nowMs?: number;
+}): {
+  nextProviderData: Record<string, unknown>;
+  exhaustion: { window: string; scopeUntil: string } | null;
+} {
+  const nextProviderData: Record<string, unknown> = {
+    ...existingProviderData,
+    codexQuotaState: {
+      usage5h: quota.usage5h,
+      limit5h: quota.limit5h,
+      resetAt5h: quota.resetAt5h,
+      usage7d: quota.usage7d,
+      limit7d: quota.limit7d,
+      resetAt7d: quota.resetAt7d,
+      scope,
+      updatedAt: new Date(nowMs).toISOString(),
+    },
+  };
+
+  if (status !== 429) return { nextProviderData, exhaustion: null };
+
+  const { cooldownMs, window: exhaustedWindow } = getCodexDualWindowCooldownMs(quota);
+  if (cooldownMs <= 0) return { nextProviderData, exhaustion: null };
+
+  const scopeUntil = new Date(nowMs + cooldownMs).toISOString();
+  const scopeMapRaw =
+    existingProviderData.codexScopeRateLimitedUntil &&
+    typeof existingProviderData.codexScopeRateLimitedUntil === "object"
+      ? existingProviderData.codexScopeRateLimitedUntil
+      : {};
+
+  nextProviderData.codexScopeRateLimitedUntil = {
+    ...(scopeMapRaw as Record<string, unknown>),
+    [scope]: scopeUntil,
+  };
+  nextProviderData.codexExhaustedWindow = exhaustedWindow;
+  return { nextProviderData, exhaustion: { window: exhaustedWindow, scopeUntil } };
+}

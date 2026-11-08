@@ -815,3 +815,16 @@ Environment variables actively used by code:
 - `GET /api/settings`
 - `GET /api/v1/models`
 - CLI target base URL should be `http://<host>:20128/v1` when `PORT=20128`
+
+## Known Gaps (Implemented but Not Wired)
+
+These modules exist and are unit-tested but are not called by the chat pipeline today, so enabling
+them would change runtime behavior and needs an explicit decision:
+
+- `open-sse/services/contextManager.ts` (`compressContext`): layered context compression. The
+  pipeline currently handles context overflow reactively through the larger-context model fallback.
+- `open-sse/services/systemPrompt.ts` (`injectSystemPrompt`): only used by the settings route.
+- `open-sse/handlers/responsesHandler.ts`: only referenced by its own test.
+
+The "semantic" cache (`src/lib/semanticCache.ts`) is an exact-match cache: its key is a SHA-256 of
+model, messages, sampling params and, when present, `tools`, `tool_choice` and `response_format`.
