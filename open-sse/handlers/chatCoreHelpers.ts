@@ -431,3 +431,35 @@ export function sanitizeChatBodyInPlace(body: Record<string, any>): Record<strin
 
   return body;
 }
+
+/** Response returned when an idempotency key matches a previously stored result. */
+export function buildIdempotentHitResult(
+  cachedIdemp: { response: unknown; status: number },
+  corsOrigin: string
+) {
+  return {
+    success: true,
+    response: new Response(JSON.stringify(cachedIdemp.response), {
+      status: cachedIdemp.status,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": corsOrigin,
+        "X-OmniRoute-Idempotent": "true",
+      },
+    }),
+  };
+}
+
+/** Response returned on a semantic-cache hit (non-streaming, temperature 0). */
+export function buildSemanticCacheHitResult(cached: unknown, corsOrigin: string) {
+  return {
+    success: true,
+    response: new Response(JSON.stringify(cached), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": corsOrigin,
+        "X-OmniRoute-Cache": "HIT",
+      },
+    }),
+  };
+}
