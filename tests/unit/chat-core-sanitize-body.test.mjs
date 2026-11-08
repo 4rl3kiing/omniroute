@@ -51,3 +51,24 @@ test("mutates in place and is a no-op for bodies without those fields", () => {
   assert.equal(sanitizeChatBodyInPlace(body), body);
   assert.deepEqual(body, { model: "m", stream: true });
 });
+
+const { buildIdempotentHitResult, buildSemanticCacheHitResult } =
+  await import("../../open-sse/handlers/chatCoreHelpers.ts");
+
+test("idempotent hit result keeps status, body and marker headers", async () => {
+  const r = buildIdempotentHitResult({ response: { ok: 1 }, status: 201 }, "*");
+  assert.equal(r.success, true);
+  assert.equal(r.response.status, 201);
+  assert.equal(r.response.headers.get("X-OmniRoute-Idempotent"), "true");
+  assert.equal(r.response.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.equal(r.response.headers.get("Content-Type"), "application/json");
+  assert.deepEqual(await r.response.json(), { ok: 1 });
+});
+
+test("semantic cache hit result is a 200 JSON response flagged HIT", async () => {
+  const r = buildSemanticCacheHitResult({ id: "c" }, "https://x.test");
+  assert.equal(r.response.status, 200);
+  assert.equal(r.response.headers.get("X-OmniRoute-Cache"), "HIT");
+  assert.equal(r.response.headers.get("Access-Control-Allow-Origin"), "https://x.test");
+  assert.deepEqual(await r.response.json(), { id: "c" });
+});

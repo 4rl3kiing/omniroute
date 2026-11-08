@@ -142,6 +142,8 @@ import {
   attachLogMeta,
   shouldUseNativeCodexPassthrough,
   sanitizeChatBodyInPlace,
+  buildIdempotentHitResult,
+  buildSemanticCacheHitResult,
 } from "./chatCoreHelpers.ts";
 
 // Re-exported to keep the public API of this module unchanged.
@@ -263,17 +265,7 @@ export async function handleChatCore({
   const cachedIdemp = checkIdempotency(idempotencyKey);
   if (cachedIdemp) {
     log?.debug?.("IDEMPOTENCY", `Hit for key=${idempotencyKey?.slice(0, 12)}...`);
-    return {
-      success: true,
-      response: new Response(JSON.stringify(cachedIdemp.response), {
-        status: cachedIdemp.status,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": getCorsOrigin(),
-          "X-OmniRoute-Idempotent": "true",
-        },
-      }),
-    };
+    return buildIdempotentHitResult(cachedIdemp, getCorsOrigin());
   }
 
   // Initialize rate limit settings from persisted DB (once, lazy)
@@ -504,16 +496,7 @@ export async function handleChatCore({
     const cached = getCachedResponse(signature);
     if (cached) {
       log?.debug?.("CACHE", `Semantic cache HIT for ${model}`);
-      return {
-        success: true,
-        response: new Response(JSON.stringify(cached), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": getCorsOrigin(),
-            "X-OmniRoute-Cache": "HIT",
-          },
-        }),
-      };
+      return buildSemanticCacheHitResult(cached, getCorsOrigin());
     }
   }
 
