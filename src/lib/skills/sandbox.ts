@@ -65,10 +65,13 @@ class SandboxRunner {
       `${this.config.memoryLimit}m`,
       "--network",
       this.config.networkEnabled ? "bridge" : "none",
-      "--read-only",
-      this.config.readOnly.toString(),
-      "--cap-add",
-      "SYS_TIME",
+      // `--read-only` is a boolean flag: passing "true"/"false" as a value would make
+      // docker treat it as the image name. Only add the flag when enabled.
+      ...(this.config.readOnly ? ["--read-only"] : []),
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
       "--pids-limit",
       "100",
       image,

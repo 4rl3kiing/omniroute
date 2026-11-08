@@ -17,6 +17,7 @@ import { executeQuotaManagement } from "@/lib/a2a/skills/quotaManagement";
 import { logRoutingDecision } from "@/lib/a2a/routingLogger";
 import { createA2AStream, SSE_HEADERS } from "@/lib/a2a/streaming";
 import { executeA2ATaskWithState } from "@/lib/a2a/taskExecution";
+import { secureCompare } from "@/shared/utils/secureCompare";
 
 // ============ Skill Registry ============
 
@@ -79,7 +80,7 @@ function authenticate(req: NextRequest): boolean {
 
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
-  return token === configuredKey;
+  return secureCompare(token, configuredKey);
 }
 
 // ============ JSON-RPC Helpers ============

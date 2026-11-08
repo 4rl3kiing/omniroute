@@ -812,8 +812,12 @@ export async function handleChatCore({
   const stream = resolveStreamFlag(body?.stream, acceptHeader);
 
   // ── Phase 9.1: Semantic cache check (non-streaming, temp=0 only) ──
+  // The signature is computed once, before memory/skills injection can mutate the body,
+  // so the lookup key and the store key always match.
+  let cacheSignature: string | null = null;
   if (isCacheable(body, clientRawRequest?.headers)) {
-    const signature = generateSignature(model, body.messages, body.temperature, body.top_p);
+    const signature = generateSignature(model, body.messages, body.temperature, body.top_p, body);
+    cacheSignature = signature;
     const cached = getCachedResponse(signature);
     if (cached) {
       log?.debug?.("CACHE", `Semantic cache HIT for ${model}`);
@@ -2269,8 +2273,8 @@ export async function handleChatCore({
     }
 
     // ── Phase 9.1: Cache store (non-streaming, temp=0) ──
-    if (isCacheable(body, clientRawRequest?.headers)) {
-      const signature = generateSignature(model, body.messages, body.temperature, body.top_p);
+    if (cacheSignature && isCacheable(body, clientRawRequest?.headers)) {
+      const signature = cacheSignature;
       const tokensSaved = usage?.prompt_tokens + usage?.completion_tokens || 0;
       setCachedResponse(signature, model, translatedResponse, tokensSaved);
       log?.debug?.("CACHE", `Stored response for ${model} (${tokensSaved} tokens)`);

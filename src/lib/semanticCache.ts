@@ -113,13 +113,21 @@ function getMemoryCache() {
  * @param {number} topP
  * @returns {string} hex signature
  */
-export function generateSignature(model, messages, temperature = 0, topP = 1) {
-  const payload = JSON.stringify({
+export function generateSignature(model, messages, temperature = 0, topP = 1, extras = null) {
+  const base: Record<string, unknown> = {
     model,
     messages: normalizeMessages(messages),
     temperature,
     top_p: topP,
-  });
+  };
+  // Fields that change the response shape must be part of the cache key.
+  // Added only when present so signatures of plain chat requests stay stable.
+  if (extras && typeof extras === "object") {
+    for (const field of ["tools", "tool_choice", "response_format"]) {
+      if (extras[field] !== undefined && extras[field] !== null) base[field] = extras[field];
+    }
+  }
+  const payload = JSON.stringify(base);
   return crypto.createHash("sha256").update(payload).digest("hex");
 }
 

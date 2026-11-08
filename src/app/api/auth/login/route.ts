@@ -5,6 +5,7 @@ import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { secureCompare } from "@/shared/utils/secureCompare";
 
 // SECURITY: No hardcoded fallback — JWT_SECRET must be configured.
 if (!process.env.JWT_SECRET) {
@@ -49,7 +50,7 @@ export async function POST(request) {
         );
       }
       const initialPassword = process.env.INITIAL_PASSWORD;
-      isValid = password === initialPassword;
+      isValid = secureCompare(password, initialPassword);
     }
 
     if (isValid) {

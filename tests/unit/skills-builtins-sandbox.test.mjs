@@ -152,6 +152,12 @@ test("sandboxRunner handles success, spawn errors, timeouts, and killAll cleanup
       assert.equal(successResult.killed, false);
       assert.equal(calls[0].args[0], "run");
       assert.ok(calls[0].args.includes("--read-only"));
+      // --read-only is a boolean flag: its next arg must not be "true"/"false".
+      const roIndex = calls[0].args.indexOf("--read-only");
+      assert.notEqual(calls[0].args[roIndex + 1], "true");
+      assert.ok(calls[0].args.includes("--cap-drop"));
+      assert.ok(!calls[0].args.includes("SYS_TIME"));
+      assert.ok(calls[0].args.includes("no-new-privileges"));
       assert.ok(calls[0].args.includes("alpine"));
       assert.equal(calls[0].options.env.CUSTOM_ENV, "1");
 
