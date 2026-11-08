@@ -377,3 +377,57 @@ export function buildCodexQuotaProviderData({
   nextProviderData.codexExhaustedWindow = exhaustedWindow;
   return { nextProviderData, exhaustion: { window: exhaustedWindow, scopeUntil } };
 }
+
+/**
+ * Common input sanitization applied to every chat request body (including
+ * passthrough paths). Mutates `body` in place, exactly as the previous inline
+ * block did, and returns it for convenience.
+ */
+export function sanitizeChatBodyInPlace(body: Record<string, any>): Record<string, any> {
+  // #994: Normalize max_output_tokens to max_tokens for universal compatibility
+  if (body.max_output_tokens !== undefined) {
+    if (body.max_tokens === undefined) {
+      body.max_tokens = body.max_output_tokens;
+    }
+    delete body.max_output_tokens;
+  }
+
+  // #291: Strip empty name fields from messages/input items
+  // Upstream providers (OpenAI, Codex) reject name:"" with 400 errors.
+  if (Array.isArray(body.messages)) {
+    body.messages = body.messages.map((msg: Record<string, unknown>) => {
+      if (msg.name === "") {
+        const { name: _n, ...rest } = msg;
+        return rest;
+      }
+      return msg;
+    });
+  }
+  if (Array.isArray(body.input)) {
+    body.input = body.input.map((item: Record<string, unknown>) => {
+      if (item.name === "") {
+        const { name: _n, ...rest } = item;
+        return rest;
+      }
+      return item;
+    });
+  }
+  // #346/#637: Strip tools with empty name
+  // Clients sometimes forward tool definitions with empty names, causing
+  // upstream providers to reject with 400 "Invalid 'tools[0].name': empty string."
+  if (Array.isArray(body.tools)) {
+    body.tools = body.tools.filter((tool: Record<string, unknown>) => {
+      // Built-in Responses API tool types (web_search, file_search, computer, etc.)
+      // are identified solely by their `type` field and carry no name — preserve them.
+      const toolType = typeof tool.type === "string" ? tool.type : "";
+      if (toolType && toolType !== "function" && !tool.function && tool.name === undefined) {
+        return true;
+      }
+      const fn = tool.function as Record<string, unknown> | undefined;
+      const name = fn?.name ?? tool.name;
+      return name && String(name).trim().length > 0;
+    });
+  }
+
+  return body;
+}
