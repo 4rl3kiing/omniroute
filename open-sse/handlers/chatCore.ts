@@ -1,3 +1,15 @@
+import {
+  getSimilarityThreshold,
+  buildSimilarityScope,
+  lastUserText,
+  similarityIndex,
+} from "@/lib/semanticSimilarity";
+import {
+  injectSystemPrompt,
+  getSystemPromptConfig,
+  applySystemPromptFromSettings,
+} from "../services/systemPrompt.ts";
+import { compressContext, isContextCompressionEnabled } from "../services/contextManager.ts";
 import { getCorsOrigin } from "../utils/cors.ts";
 import { detectFormatFromEndpoint, getTargetFormat } from "../services/provider.ts";
 import { translateRequest, needsTranslation } from "../translator/index.ts";
@@ -51,6 +63,7 @@ import {
   getModelPreserveOpenAIDeveloperRole,
   getModelUpstreamExtraHeaders,
   getUpstreamProxyConfig,
+  getCachedSettings,
 } from "@/lib/localDb";
 import { getExecutor } from "../executors/index.ts";
 import { getCacheControlSettings } from "@/lib/cacheControlSettings";
@@ -490,6 +503,8 @@ export async function handleChatCore({
   // The signature is computed once, before memory/skills injection can mutate the body,
   // so the lookup key and the store key always match.
   let cacheSignature: string | null = null;
+  let similarityScope: string | null = null;
+  let similarityText: string | null = null;
   if (isCacheable(body, clientRawRequest?.headers)) {
     const signature = generateSignature(model, body.messages, body.temperature, body.top_p, body);
     cacheSignature = signature;
@@ -497,6 +512,23 @@ export async function handleChatCore({
     if (cached) {
       log?.debug?.("CACHE", `Semantic cache HIT for ${model}`);
       return buildSemanticCacheHitResult(cached, getCorsOrigin());
+    }
+    // Opt-in near-duplicate lookup (SEMANTIC_CACHE_SIMILARITY); off unless a threshold is set.
+    const similarityThreshold = getSimilarityThreshold();
+    if (similarityThreshold > 0) {
+      similarityScope = buildSimilarityScope(model, body, body.temperature, body.top_p);
+      similarityText = lastUserText(body.messages);
+      if (similarityScope && similarityText) {
+        const near = similarityIndex.find(similarityScope, similarityText, similarityThreshold);
+        const nearCached = near ? getCachedResponse(near.signature) : null;
+        if (nearCached) {
+          log?.debug?.(
+            "CACHE",
+            `Semantic cache SIMILAR hit for ${model} (score=${near?.score.toFixed(3)})`
+          );
+          return buildSemanticCacheHitResult(nearCached, getCorsOrigin());
+        }
+      }
     }
   }
 
@@ -564,6 +596,40 @@ export async function handleChatCore({
         tools: mergedTools,
       };
       log?.debug?.("SKILLS", `Injected ${mergedTools.length - existingTools.length} skills`);
+    }
+  }
+
+  // Global system prompt (configured via /api/settings/system-prompt; no-op unless enabled)
+  try {
+    applySystemPromptFromSettings(await getCachedSettings());
+    const systemPromptConfig = getSystemPromptConfig();
+    if (systemPromptConfig.enabled && systemPromptConfig.prompt) {
+      const target =
+        sourceFormat === FORMATS.CLAUDE && body.system === undefined
+          ? { ...body, system: "" }
+          : body;
+      body = injectSystemPrompt(target) as typeof body;
+    }
+  } catch (spErr) {
+    log?.debug?.("SYSTEM_PROMPT", `skipped: ${spErr instanceof Error ? spErr.message : spErr}`);
+  }
+
+  // Opt-in pre-flight context compression (OMNIROUTE_CONTEXT_COMPRESSION=true)
+  if (isContextCompressionEnabled() && !nativeCodexPassthrough) {
+    try {
+      const compression = compressContext(body, { provider, model });
+      if (compression.compressed) {
+        body = compression.body as typeof body;
+        log?.debug?.(
+          "CONTEXT",
+          `Compressed context ${compression.stats?.original} → ${compression.stats?.final} tokens`
+        );
+      }
+    } catch (ctxErr) {
+      log?.debug?.(
+        "CONTEXT",
+        `compression skipped: ${ctxErr instanceof Error ? ctxErr.message : ctxErr}`
+      );
     }
   }
 
@@ -1900,6 +1966,9 @@ export async function handleChatCore({
       const signature = cacheSignature;
       const tokensSaved = usage?.prompt_tokens + usage?.completion_tokens || 0;
       setCachedResponse(signature, model, translatedResponse, tokensSaved);
+      if (similarityScope && similarityText) {
+        similarityIndex.add(similarityScope, signature, similarityText);
+      }
       log?.debug?.("CACHE", `Stored response for ${model} (${tokensSaved} tokens)`);
     }
 

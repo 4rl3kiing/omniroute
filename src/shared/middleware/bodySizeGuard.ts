@@ -33,6 +33,7 @@ type BodySizeRule = { prefix: string; limit: number };
 const ROUTE_LIMITS: BodySizeRule[] = [
   { prefix: "/api/db-backups/import", limit: MAX_BODY_BYTES_IMPORT },
   { prefix: "/api/v1/audio/transcriptions", limit: MAX_BODY_BYTES_AUDIO },
+  { prefix: "/api/v1/files", limit: MAX_BODY_BYTES_IMPORT },
 ];
 
 /**

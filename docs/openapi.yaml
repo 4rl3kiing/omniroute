@@ -369,6 +369,85 @@ paths:
         "200":
           description: Moderation result
 
+  /api/v1/files:
+    get:
+      tags: [Batches]
+      summary: List files
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: File list
+    post:
+      tags: [Batches]
+      summary: Upload a file (multipart/form-data with `file` and `purpose`)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                purpose:
+                  type: string
+      responses:
+        "200":
+          description: File object
+
+  /api/v1/batches:
+    get:
+      tags: [Batches]
+      summary: List batches
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Batch list
+    post:
+      tags: [Batches]
+      summary: Create a batch from an uploaded JSONL file (/v1/chat/completions only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input_file_id, endpoint]
+              properties:
+                input_file_id:
+                  type: string
+                endpoint:
+                  type: string
+                  enum: [/v1/chat/completions]
+                completion_window:
+                  type: string
+                  enum: ["24h"]
+      responses:
+        "200":
+          description: Batch object
+
+  /api/metrics:
+    get:
+      tags: [Monitoring]
+      summary: Prometheus metrics
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /api/v1/rerank:
     post:
       tags: [Rerank]

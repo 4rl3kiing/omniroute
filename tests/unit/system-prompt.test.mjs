@@ -1,11 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const {
-  injectSystemPrompt,
-  setSystemPromptConfig,
-  getSystemPromptConfig,
-} = await import("../../open-sse/services/systemPrompt.ts");
+const { injectSystemPrompt, setSystemPromptConfig, getSystemPromptConfig } =
+  await import("../../open-sse/services/systemPrompt.ts");
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -94,3 +91,25 @@ test("injectSystemPrompt: null body returns as-is", () => {
 
 // Reset
 test.after(() => setSystemPromptConfig({ enabled: false, prompt: "" }));
+
+test("injectSystemPrompt: Claude body with system + messages is not double-injected", () => {
+  setSystemPromptConfig({ enabled: true, prompt: "GLOBAL:" });
+  const result = injectSystemPrompt({
+    system: "Claude prompt",
+    messages: [{ role: "user", content: "hi" }],
+  });
+  assert.ok(result.system.startsWith("GLOBAL:"));
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].role, "user");
+});
+
+test("applySystemPromptFromSettings syncs persisted settings into memory", async () => {
+  const { applySystemPromptFromSettings, getSystemPromptConfig } =
+    await import("../../open-sse/services/systemPrompt.ts");
+  applySystemPromptFromSettings({ systemPrompt: { enabled: true, prompt: "FROM-DB" } });
+  assert.deepEqual(getSystemPromptConfig(), { enabled: true, prompt: "FROM-DB" });
+  applySystemPromptFromSettings({});
+  assert.equal(getSystemPromptConfig().prompt, "FROM-DB");
+  applySystemPromptFromSettings({ systemPrompt: { enabled: false, prompt: "" } });
+  assert.equal(getSystemPromptConfig().enabled, false);
+});

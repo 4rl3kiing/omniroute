@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### ✨ New Features
+
+- **Prometheus metrics:** `GET /api/metrics` exposes request/token/latency counters, circuit-breaker state and per-key spend in Prometheus text format (scrape with a Bearer API key).
+- **Files & Batches API:** OpenAI-compatible `/v1/files` and `/v1/batches` (chat completions only). Files and batches are private to the API key that created them; running batches are interrupted by a server restart.
+- **Semantic cache similarity (opt-in):** `SEMANTIC_CACHE_SIMILARITY` reuses answers for near-duplicate last user messages inside an identical scope.
+- **Combo hedging (opt-in):** `config.hedgeAfterMs` / `OMNIROUTE_COMBO_HEDGE_MS` races the next healthy model after a delay to cut tail latency.
+- **Context compression (opt-in):** `OMNIROUTE_CONTEXT_COMPRESSION=true` wires the existing pre-flight compressor into the chat pipeline.
+- **Per-breaker reset:** `POST /api/resilience/reset` accepts an optional `{ "name": "..." }`.
+
+### 🐛 Bug Fixes
+
+- **Global system prompt:** the prompt saved via `/api/settings/system-prompt` is now actually applied to requests (it was stored but never injected). Claude-format bodies no longer receive an invalid `role: "system"` message.
+
+### 🔒 Security
+
+- Dependency update via `npm audit fix` (production): 2 critical and 19 high advisories resolved, including `next` 16.2.3 → 16.4.5.
+- Added CodeQL and a weekly dependency-audit workflow.
+
 ---
 
 ## [3.6.1] — 2026-04-10

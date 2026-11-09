@@ -107,6 +107,7 @@ const comboRuntimeConfigSchema = z
     strategy: comboStrategySchema.optional(),
     maxRetries: z.coerce.number().int().min(0).max(10).optional(),
     retryDelayMs: z.coerce.number().int().min(0).max(60000).optional(),
+    hedgeAfterMs: z.coerce.number().int().min(0).max(120000).optional(),
     timeoutMs: z.coerce.number().int().min(1000).max(600000).optional(),
     concurrencyPerModel: z.coerce.number().int().min(1).max(20).optional(),
     queueTimeoutMs: z.coerce.number().int().min(1000).max(120000).optional(),
@@ -1390,3 +1391,12 @@ export const versionManagerToolSchema = z.object({
 export const versionManagerInstallSchema = versionManagerToolSchema.extend({
   version: z.string().trim().optional(),
 });
+
+export const v1BatchCreateSchema = z
+  .object({
+    input_file_id: z.string().min(1),
+    endpoint: z.literal("/v1/chat/completions"),
+    completion_window: z.literal("24h").optional().default("24h"),
+    metadata: z.record(z.string(), z.string()).optional().nullable(),
+  })
+  .strict();

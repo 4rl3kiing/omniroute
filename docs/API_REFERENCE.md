@@ -167,6 +167,39 @@ Response example:
 
 ---
 
+## Files & Batches
+
+OpenAI-compatible, `/v1/chat/completions` only. Files and batches are private to the API key that created them.
+
+```bash
+# 1. Upload a JSONL file (one request per line: custom_id, method POST, url /v1/chat/completions, body)
+curl -X POST http://localhost:20128/v1/files -H "Authorization: Bearer $KEY" \
+  -F purpose=batch -F file=@requests.jsonl
+
+# 2. Create the batch and poll it
+curl -X POST http://localhost:20128/v1/batches -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input_file_id":"file-...","endpoint":"/v1/chat/completions","completion_window":"24h"}'
+curl http://localhost:20128/v1/batches/batch-... -H "Authorization: Bearer $KEY"
+
+# 3. Download results (output_file_id / error_file_id)
+curl http://localhost:20128/v1/files/file-.../content -H "Authorization: Bearer $KEY"
+```
+
+| Endpoint                  | Method     | Description                     |
+| ------------------------- | ---------- | ------------------------------- |
+| `/v1/files`               | POST / GET | Upload / list files             |
+| `/v1/files/{id}`          | GET/DELETE | File metadata / delete          |
+| `/v1/files/{id}/content`  | GET        | Download file content           |
+| `/v1/batches`             | POST / GET | Create / list batches           |
+| `/v1/batches/{id}`        | GET        | Batch status and request counts |
+| `/v1/batches/{id}/cancel` | POST       | Request cancellation            |
+
+Requests run sequentially through the normal chat pipeline (so routing, combos, budgets and caches apply).
+A server restart interrupts running batches (status becomes `failed`). Limits: `OMNIROUTE_FILES_MAX_BYTES`, `OMNIROUTE_BATCH_MAX_REQUESTS`.
+
+---
+
 ## Dashboard & Management
 
 ### Authentication
@@ -233,6 +266,8 @@ Response example:
 | `/api/rate-limits`       | GET        | Per-account rate limits                                                                              |
 | `/api/monitoring/health` | GET        | Health check + provider summary (`catalogCount`, `configuredCount`, `activeCount`, `monitoredCount`) |
 | `/api/cache/stats`       | GET/DELETE | Cache stats / clear                                                                                  |
+| `/api/metrics`           | GET        | Prometheus metrics (requests, tokens, latency, circuit breakers, per-key spend)                      |
+| `/api/resilience/reset`  | POST       | Reset circuit breakers (optional body `{ "name": "..." }` for a single one)                          |
 
 ### Backup & Export/Import
 

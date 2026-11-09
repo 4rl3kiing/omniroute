@@ -114,3 +114,11 @@ test("compressContext: Layer 3 — drops old messages to fit", () => {
   // System message preserved
   assert.equal(result.body.messages[0].role, "system");
 });
+
+test("isContextCompressionEnabled is opt-in", async () => {
+  const { isContextCompressionEnabled } = await import("../../open-sse/services/contextManager.ts");
+  assert.equal(isContextCompressionEnabled({}), false);
+  assert.equal(isContextCompressionEnabled({ OMNIROUTE_CONTEXT_COMPRESSION: "false" }), false);
+  assert.equal(isContextCompressionEnabled({ OMNIROUTE_CONTEXT_COMPRESSION: "true" }), true);
+  assert.equal(isContextCompressionEnabled({ OMNIROUTE_CONTEXT_COMPRESSION: "1" }), true);
+});
