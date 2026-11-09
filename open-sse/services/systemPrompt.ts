@@ -39,8 +39,12 @@ export function injectSystemPrompt(body, promptText = null) {
 
   const result = { ...body };
 
-  // OpenAI/Claude format (messages[])
-  if (result.messages && Array.isArray(result.messages)) {
+  // Claude format keeps the system prompt in a top-level `system` field; adding a
+  // role:"system" message there would be rejected upstream, so skip the messages branch.
+  const hasClaudeSystemField = result.system !== undefined;
+
+  // OpenAI format (messages[])
+  if (!hasClaudeSystemField && result.messages && Array.isArray(result.messages)) {
     const sysIdx = result.messages.findIndex((m) => m.role === "system" || m.role === "developer");
     result.messages = [...result.messages];
     if (sysIdx >= 0) {
@@ -63,4 +67,18 @@ export function injectSystemPrompt(body, promptText = null) {
   }
 
   return result;
+}
+
+/**
+ * Sync the in-memory config from persisted settings (settings.systemPrompt, written by
+ * PUT /api/settings/system-prompt). Cheap: callers pass already-cached settings.
+ */
+export function applySystemPromptFromSettings(settings) {
+  const saved = settings?.systemPrompt;
+  if (!saved || typeof saved !== "object") return;
+  const enabled = saved.enabled === true;
+  const prompt = typeof saved.prompt === "string" ? saved.prompt : "";
+  if (_config.enabled !== enabled || _config.prompt !== prompt) {
+    _config = { ..._config, enabled, prompt };
+  }
 }

@@ -4,6 +4,7 @@
  * strict-random, auto, fill-first, p2c, lkgp, context-optimized, and context-relay strategies
  */
 
+import { resolveHedgeDelayMs, runWithHedge } from "./comboHedge.ts";
 import { checkFallbackError, formatRetryAfter, getProviderProfile } from "./accountFallback.ts";
 import { unavailableResponse } from "../utils/error.ts";
 import { recordComboIntent, recordComboRequest, getComboMetrics } from "./comboMetrics.ts";
@@ -988,7 +989,56 @@ export async function handleComboChat({
         `Trying model ${i + 1}/${orderedModels.length}: ${modelStr}${retry > 0 ? ` (retry ${retry})` : ""}`
       );
 
-      const result = await handleSingleModelWrapped(body, modelStr);
+      // Opt-in hedging (combo.config.hedgeAfterMs or OMNIROUTE_COMBO_HEDGE_MS): non-streaming,
+      // first attempt only. If this model is slower than the delay, the next healthy model is
+      // raced against it and the first good answer wins.
+      let result;
+      const hedgeDelayMs = !body.stream && retry === 0 ? resolveHedgeDelayMs(config) : 0;
+      let hedgeTarget: string | null = null;
+      if (hedgeDelayMs > 0) {
+        for (let j = i + 1; j < orderedModels.length; j++) {
+          const candidate = orderedModels[j];
+          const candProvider = parseModel(candidate).provider || "unknown";
+          const candProfile = getProviderProfile(candProvider);
+          const candBreaker = getCircuitBreaker(`combo:${candidate}`, {
+            failureThreshold: candProfile.circuitBreakerThreshold,
+            resetTimeout: candProfile.circuitBreakerReset,
+          });
+          if (!candBreaker.canExecute()) continue;
+          if (isModelAvailable && !(await isModelAvailable(candidate))) continue;
+          hedgeTarget = candidate;
+          break;
+        }
+      }
+      if (hedgeTarget) {
+        const target = hedgeTarget;
+        const outcome = await runWithHedge(
+          () => handleSingleModelWrapped(body, modelStr),
+          () => handleSingleModelWrapped(body, target),
+          hedgeDelayMs,
+          async (r: Response) => r.ok && (await validateResponseQuality(r, false, log)).valid
+        );
+        result = outcome.result;
+        if (outcome.winner === "secondary") {
+          const latencyMs = Date.now() - startTime;
+          log.info("COMBO", `Hedge won: ${target} answered before ${modelStr} (${latencyMs}ms)`);
+          const targetProvider = parseModel(target).provider || "unknown";
+          const targetProfile = getProviderProfile(targetProvider);
+          getCircuitBreaker(`combo:${target}`, {
+            failureThreshold: targetProfile.circuitBreakerThreshold,
+            resetTimeout: targetProfile.circuitBreakerReset,
+          })._onSuccess();
+          recordComboRequest(combo.name, target, {
+            success: true,
+            latencyMs,
+            fallbackCount,
+            strategy,
+          });
+          return result;
+        }
+      } else {
+        result = await handleSingleModelWrapped(body, modelStr);
+      }
 
       // Success — validate response quality before returning
       if (result.ok) {

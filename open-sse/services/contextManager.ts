@@ -255,3 +255,8 @@ function purifyHistory(messages, targetTokens) {
 
   return result;
 }
+
+/** Pre-flight context compression is opt-in: set OMNIROUTE_CONTEXT_COMPRESSION=true. */
+export function isContextCompressionEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return /^(1|true|yes|on)$/i.test(String(env.OMNIROUTE_CONTEXT_COMPRESSION || ""));
+}
